@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { FreeFireApiResponse } from "@/services/freefireApi";
 import { User, ThumbsUp, Star, Globe, TrendingUp, X } from "lucide-react";
@@ -25,6 +25,9 @@ export const PlayerModal = ({ playerData, isOpen, onClose }: PlayerModalProps) =
           <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             Informações do Jogador
           </DialogTitle>
+          <DialogDescription className="text-muted-foreground">
+            Detalhes sobre o envio de likes para {playerData.PlayerNickname}
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">

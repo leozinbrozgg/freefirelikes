@@ -85,10 +85,16 @@ export const FreefireForm = () => {
           description: `Este ID já recebeu likes nas últimas 24h. Tente novamente amanhã.`,
           variant: "destructive",
         });
-      } else {
+      } else if (response.Likes_Enviados > 0) {
         toast({
           title: "Likes Enviados com Sucesso! 🔥",
           description: `${response.Likes_Enviados} likes enviados para ${response.PlayerNickname}!`,
+        });
+      } else {
+        toast({
+          title: "Erro no Envio",
+          description: "Não foi possível enviar os likes. Tente novamente.",
+          variant: "destructive",
         });
       }
 
