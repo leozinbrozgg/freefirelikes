@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Free Fire Gaming Design System */
+
+@layer base {
+  :root {
+    /* Gaming Dark Theme */
+    --background: 220 15% 6%;
+    --foreground: 0 0% 95%;
+
+    /* Card System */
+    --card: 220 15% 8%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 220 15% 8%;
+    --popover-foreground: 0 0% 95%;
+
+    /* Free Fire Primary (Vibrant Green) */
+    --primary: 142 76% 36%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Free Fire Secondary (Orange Accent) */
+    --secondary: 22 100% 55%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Muted Elements */
+    --muted: 220 15% 12%;
+    --muted-foreground: 215 20% 65%;
+
+    /* Gaming Accent */
+    --accent: 260 100% 70%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* Gaming Borders */
+    --border: 220 15% 15%;
+    --input: 220 15% 12%;
+    --ring: 142 76% 36%;
+
+    --radius: 0.5rem;
+
+    /* Gaming Gradients & Effects */
+    --gradient-gaming: linear-gradient(135deg, hsl(142 76% 36%), hsl(22 100% 55%));
+    --gradient-dark: linear-gradient(180deg, hsl(220 15% 8%), hsl(220 15% 6%));
+    --gradient-card: linear-gradient(145deg, hsl(220 15% 10%), hsl(220 15% 8%));
+    
+    /* Gaming Shadows */
+    --shadow-gaming: 0 10px 30px -5px hsl(142 76% 36% / 0.3);
+    --shadow-glow: 0 0 20px hsl(142 76% 36% / 0.4);
+    --shadow-card: 0 8px 32px hsl(220 15% 3% / 0.5);
+    
+    /* Animations */
+    --transition-gaming: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-glow: box-shadow 0.3s ease;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Same as root for dark theme consistency */
+    --background: 220 15% 6%;
+    --foreground: 0 0% 95%;
+    --card: 220 15% 8%;
+    --card-foreground: 0 0% 95%;
+    --popover: 220 15% 8%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 142 76% 36%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 22 100% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 220 15% 12%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 260 100% 70%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 15% 15%;
+    --input: 220 15% 12%;
+    --ring: 142 76% 36%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    background: var(--gradient-dark);
+    min-height: 100vh;
+  }
+  
+  /* Gaming specific utilities */
+  .gradient-gaming {
+    background: var(--gradient-gaming);
+  }
+  
+  .gradient-card {
+    background: var(--gradient-card);
+  }
+  
+  .shadow-gaming {
+    box-shadow: var(--shadow-gaming);
+  }
+  
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  
+  .transition-gaming {
+    transition: var(--transition-gaming);
+  }
+  
+  .glow-hover:hover {
+    box-shadow: var(--shadow-glow);
+    transform: translateY(-2px);
+  }
+}
