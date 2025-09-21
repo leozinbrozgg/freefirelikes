@@ -135,16 +135,20 @@ export class FreeFireApiService {
       }
     }
 
-    // Se conseguiu buscar informações do jogador, usa o nickname real
-    if (playerInfo) {
+    // Prioriza o nickname da resposta da API externa se for válido
+    // Só usa o nickname da getPlayerInfo como fallback se necessário
+    if (apiResponse.PlayerNickname && apiResponse.PlayerNickname !== `Player_${request.uid}`) {
+      // A API externa retornou um nickname válido, mantém ele
+      console.log('Usando nickname da API externa:', apiResponse.PlayerNickname);
+    } else if (playerInfo && playerInfo.nickname) {
+      // A API externa não retornou nickname válido, usa o da getPlayerInfo
+      console.log('Usando nickname da getPlayerInfo:', playerInfo.nickname);
       apiResponse.PlayerNickname = playerInfo.nickname;
       apiResponse.PlayerRegion = playerInfo.region;
     } else {
-      // Se não conseguiu buscar informações, tenta melhorar o nickname da resposta
-      if (apiResponse.PlayerNickname === `Player_${request.uid}`) {
-        // Gera um nickname mais amigável baseado no ID
-        apiResponse.PlayerNickname = this.generateFriendlyNickname(request.uid);
-      }
+      // Nenhum nickname válido encontrado, gera um amigável
+      console.log('Gerando nickname amigável para ID:', request.uid);
+      apiResponse.PlayerNickname = this.generateFriendlyNickname(request.uid);
     }
 
     // Salva no histórico (local e Supabase)
@@ -337,7 +341,7 @@ export class FreeFireApiService {
       playerLevel: apiResponse.PlayerLevel,
       playerEXP: apiResponse.PlayerEXP,
       timestamp: Date.now(),
-      success: apiResponse.Likes_Antes !== apiResponse.Likes_Depois
+      success: apiResponse.Likes_Enviados > 0 && apiResponse.Likes_Antes !== apiResponse.Likes_Depois
     };
 
     // Salva apenas no Supabase (banco de dados)

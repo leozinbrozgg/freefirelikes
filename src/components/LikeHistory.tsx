@@ -1,13 +1,12 @@
-import { useSupabaseHistory } from '@/hooks/useSupabase';
+import { useSupabaseHistory, useSupabaseStats } from '@/hooks/useSupabase';
 import { TrendingUp, CheckCircle, XCircle } from 'lucide-react';
 
 export const LikeHistory = () => {
   const { history, isLoading, error } = useSupabaseHistory(20, 0);
+  const { stats } = useSupabaseStats();
 
-  // Calcular total de likes enviados com sucesso
-  const totalLikesSent = history?.reduce((total, entry) => {
-    return entry.success ? total + entry.likes_enviados : total;
-  }, 0) || 0;
+  // Usar o total de likes das estatísticas globais (mais preciso)
+  const totalLikesSent = stats?.total_likes_sent || 0;
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
