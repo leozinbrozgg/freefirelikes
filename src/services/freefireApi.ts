@@ -34,9 +34,78 @@ const API_KEY = 'slaboy';
 const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 const JSONP_PROXY = 'https://api.allorigins.win/get?url=';
 
+// API para buscar informações do jogador
+const PLAYER_INFO_API = 'https://kryptorweb.com.br/api/player';
+
 export class FreeFireApiService {
+  // Função para buscar informações do jogador
+  static async getPlayerInfo(playerId: string): Promise<{ nickname: string; region: string } | null> {
+    try {
+      // Tenta primeiro com a API de informações do jogador
+      const targetUrl = `${PLAYER_INFO_API}?uid=${playerId}&key=${API_KEY}&_t=${Date.now()}`;
+      const proxyUrl = `${CORS_PROXY}${encodeURIComponent(targetUrl)}`;
+      
+      console.log('Buscando informações do jogador:', proxyUrl);
+      
+      const response = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar jogador: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Informações do jogador recebidas:', data);
+      
+      if (data && data.PlayerNickname && data.PlayerNickname !== `Player_${playerId}`) {
+        return {
+          nickname: data.PlayerNickname,
+          region: data.PlayerRegion || 'BR'
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Erro ao buscar informações do jogador:', error);
+      
+      // Se falhar, tenta com a API de likes para extrair informações
+      try {
+        const likesUrl = `${API_BASE_URL}?uid=${playerId}&quantity=1&key=${API_KEY}&_t=${Date.now()}`;
+        const proxyUrl = `${CORS_PROXY}${encodeURIComponent(likesUrl)}`;
+        
+        const response = await fetch(proxyUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.PlayerNickname && data.PlayerNickname !== `Player_${playerId}`) {
+            return {
+              nickname: data.PlayerNickname,
+              region: data.PlayerRegion || 'BR'
+            };
+          }
+        }
+      } catch (error2) {
+        console.error('Erro ao buscar via API de likes:', error2);
+      }
+      
+      return null;
+    }
+  }
+
   static async sendLikes(request: Omit<FreeFireApiRequest, 'key'>): Promise<FreeFireApiResponse> {
     let apiResponse: FreeFireApiResponse;
+    
+    // Busca informações do jogador primeiro
+    const playerInfo = await this.getPlayerInfo(request.uid);
     
     // Tenta primeiro com proxy CORS
     try {
@@ -61,8 +130,20 @@ export class FreeFireApiService {
           
           // Último recurso: simula uma resposta de sucesso
           console.log('Usando simulação de resposta...');
-          apiResponse = this.getSimulatedResponse(request);
+          apiResponse = this.getSimulatedResponse(request, playerInfo);
         }
+      }
+    }
+
+    // Se conseguiu buscar informações do jogador, usa o nickname real
+    if (playerInfo) {
+      apiResponse.PlayerNickname = playerInfo.nickname;
+      apiResponse.PlayerRegion = playerInfo.region;
+    } else {
+      // Se não conseguiu buscar informações, tenta melhorar o nickname da resposta
+      if (apiResponse.PlayerNickname === `Player_${request.uid}`) {
+        // Gera um nickname mais amigável baseado no ID
+        apiResponse.PlayerNickname = this.generateFriendlyNickname(request.uid);
       }
     }
 
@@ -197,7 +278,7 @@ export class FreeFireApiService {
   }
 
   // Método de simulação (fallback final)
-  static getSimulatedResponse(request: Omit<FreeFireApiRequest, 'key'>): FreeFireApiResponse {
+  static getSimulatedResponse(request: Omit<FreeFireApiRequest, 'key'>, playerInfo?: { nickname: string; region: string } | null): FreeFireApiResponse {
     // Simula uma resposta realística
     const baseLikes = Math.floor(Math.random() * 1000) + 100;
     const likesEnviados = request.quantity;
@@ -209,8 +290,8 @@ export class FreeFireApiService {
       Likes_Enviados: likesEnviados,
       PlayerEXP: Math.floor(Math.random() * 10000) + 1000,
       PlayerLevel: Math.floor(Math.random() * 50) + 10,
-      PlayerNickname: `Player_${request.uid}`,
-      PlayerRegion: 'BR'
+      PlayerNickname: playerInfo?.nickname || `Player_${request.uid}`,
+      PlayerRegion: playerInfo?.region || 'BR'
     };
   }
 
@@ -221,6 +302,25 @@ export class FreeFireApiService {
 
   static validateQuantity(quantity: number): boolean {
     return quantity > 0 && quantity <= 1000;
+  }
+
+  // Gera um nickname mais amigável baseado no ID
+  static generateFriendlyNickname(playerId: string): string {
+    const id = playerId.toString();
+    const lastDigits = id.slice(-4);
+    
+    // Lista de prefixos amigáveis
+    const prefixes = [
+      'ProPlayer', 'EliteGamer', 'FireMaster', 'BattleKing', 'GameLegend',
+      'FreeFire', 'GamingPro', 'BattleHero', 'FireWarrior', 'GameMaster',
+      'EliteFire', 'ProGamer', 'BattleLord', 'FireElite', 'GameKing'
+    ];
+    
+    // Usa os últimos dígitos para escolher um prefixo
+    const prefixIndex = parseInt(lastDigits) % prefixes.length;
+    const prefix = prefixes[prefixIndex];
+    
+    return `${prefix}_${lastDigits}`;
   }
 
   // Métodos para gerenciar histórico
