@@ -238,7 +238,9 @@ app.post('/api/send-likes', authenticateApiKey, validateRequest, async (req, res
       playerLevel: response.data.PlayerLevel || 0,
       playerEXP: response.data.PlayerEXP || 0,
       timestamp: Date.now(),
-      success: (response.data.Likes_Enviados || 0) > 0 && response.data.Likes_Antes !== response.data.Likes_Depois,
+      success: (response.data.Likes_Enviados || 0) > 0 && 
+               (response.data.Likes_Depois || 0) > (response.data.Likes_Antes || 0) &&
+               Math.abs((response.data.Likes_Enviados || 0) - ((response.data.Likes_Depois || 0) - (response.data.Likes_Antes || 0))) <= 1,
       clientIP: req.ip
     };
     

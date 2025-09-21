@@ -329,6 +329,32 @@ export class FreeFireApiService {
 
   // Métodos para gerenciar histórico
   static async saveToHistory(apiResponse: FreeFireApiResponse, request: Omit<FreeFireApiRequest, 'key'>): Promise<void> {
+    // Log detalhado para debug
+    console.log('🔍 Analisando dados da API:', {
+      uid: request.uid,
+      quantity: request.quantity,
+      likesAntes: apiResponse.Likes_Antes,
+      likesDepois: apiResponse.Likes_Depois,
+      likesEnviados: apiResponse.Likes_Enviados,
+      diferenca: apiResponse.Likes_Depois - apiResponse.Likes_Antes
+    });
+
+    const realLikesSent = apiResponse.Likes_Depois - apiResponse.Likes_Antes;
+    const isSuccess = apiResponse.Likes_Enviados > 0 && 
+                     apiResponse.Likes_Depois > apiResponse.Likes_Antes &&
+                     Math.abs(apiResponse.Likes_Enviados - realLikesSent) <= 1; // Tolerância de 1 like
+
+    console.log('✅ Resultado da análise:', {
+      success: isSuccess,
+      likesReportados: apiResponse.Likes_Enviados,
+      likesReais: realLikesSent,
+      diferenca: Math.abs(apiResponse.Likes_Enviados - realLikesSent),
+      motivo: isSuccess ? 'Likes enviados com sucesso' : 
+              apiResponse.Likes_Enviados === 0 ? 'Nenhum like enviado' :
+              apiResponse.Likes_Depois <= apiResponse.Likes_Antes ? 'Likes não aumentaram' :
+              `Diferença muito grande: ${Math.abs(apiResponse.Likes_Enviados - realLikesSent)} likes`
+    });
+
     const historyEntry: LikeHistoryEntry = {
       id: `like_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       playerId: request.uid,
@@ -341,7 +367,7 @@ export class FreeFireApiService {
       playerLevel: apiResponse.PlayerLevel,
       playerEXP: apiResponse.PlayerEXP,
       timestamp: Date.now(),
-      success: apiResponse.Likes_Enviados > 0 && apiResponse.Likes_Antes !== apiResponse.Likes_Depois
+      success: isSuccess
     };
 
     // Salva apenas no Supabase (banco de dados)
