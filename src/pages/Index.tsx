@@ -1,5 +1,6 @@
 import { FreefireForm } from "@/components/FreefireForm";
-import { SimpleLikeHistory } from "@/components/SimpleLikeHistory";
+import { LikeHistory } from "@/components/LikeHistory";
+import { WhatsAppFloatButton } from "@/components/WhatsAppFloatButton";
 
 const Index = () => {
   return (
@@ -8,11 +9,14 @@ const Index = () => {
       <div className="w-full max-w-2xl mx-auto">
         <FreefireForm />
       </div>
-      
-      {/* Histórico simplificado */}
+
+      {/* Histórico de Likes */}
       <div className="w-full max-w-2xl mx-auto">
-        <SimpleLikeHistory />
+        <LikeHistory />
       </div>
+
+      {/* Botão flutuante do WhatsApp */}
+      <WhatsAppFloatButton />
     </div>
   );
 };

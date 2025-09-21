@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useToast } from "@/hooks/use-toast";
+import { useHistoryRefresh } from "@/contexts/HistoryContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { ThumbsUp, Gamepad2, Globe, ExternalLink } from "lucide-react";
+import { ThumbsUp, Gamepad2, Globe, ExternalLink, Clock } from "lucide-react";
 import { FreeFireApiService, FreeFireApiResponse } from "@/services/freefireApi";
 import { PlayerModal } from "@/components/PlayerModal";
 
@@ -33,6 +34,7 @@ const quantityOptions = [
 
 export const FreefireForm = () => {
   const { toast } = useToast();
+  const { triggerRefresh } = useHistoryRefresh();
   const [formData, setFormData] = useState<FreefireFormData>({
     playerId: '',
     region: 'br',
@@ -42,10 +44,77 @@ export const FreefireForm = () => {
   const [playerData, setPlayerData] = useState<FreeFireApiResponse | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Timer states
+  const [cooldownTime, setCooldownTime] = useState(0);
+  const [isOnCooldown, setIsOnCooldown] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Inicializa o timer do localStorage na montagem do componente
+  useEffect(() => {
+    const savedCooldown = localStorage.getItem('ff-likes-cooldown');
+    if (savedCooldown) {
+      const cooldownEndTime = parseInt(savedCooldown);
+      const now = Date.now();
+      const remainingTime = Math.ceil((cooldownEndTime - now) / 1000);
+      
+      if (remainingTime > 0) {
+        setCooldownTime(remainingTime);
+        setIsOnCooldown(true);
+      } else {
+        // Cooldown expirado, limpa o localStorage
+        localStorage.removeItem('ff-likes-cooldown');
+      }
+    }
+  }, []);
+
+  // Timer effect
+  useEffect(() => {
+    if (cooldownTime > 0) {
+      intervalRef.current = setInterval(() => {
+        setCooldownTime((prev) => {
+          if (prev <= 1) {
+            setIsOnCooldown(false);
+            localStorage.removeItem('ff-likes-cooldown');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [cooldownTime]);
+
+  const startCooldown = () => {
+    const cooldownEndTime = Date.now() + (30 * 1000); // 30 segundos a partir de agora
+    localStorage.setItem('ff-likes-cooldown', cooldownEndTime.toString());
+    setCooldownTime(30);
+    setIsOnCooldown(true);
+  };
 
   const handleApiSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Verifica se está em cooldown
+    if (isOnCooldown) {
+      toast({
+        title: "Aguarde o Cooldown! ⏰",
+        description: `Aguarde ${cooldownTime} segundos antes de enviar novamente.`,
+        variant: "destructive",
+      });
+      return;
+    }
     
     if (!FreeFireApiService.validatePlayerId(formData.playerId)) {
       toast({
@@ -78,11 +147,11 @@ export const FreefireForm = () => {
       setConnectionStatus('connected');
       setIsModalOpen(true);
       
-      // Salva no histórico
-      FreeFireApiService.saveToHistory(response, {
-        uid: formData.playerId,
-        quantity: formData.quantity
-      });
+      // Atualiza o histórico
+      triggerRefresh();
+      
+      // Inicia o cooldown de 30 segundos
+      startCooldown();
       
       // Verifica se os likes foram realmente enviados
       if (response.Likes_Antes === response.Likes_Depois) {
@@ -265,13 +334,18 @@ export const FreefireForm = () => {
                     type="submit"
                     variant="gaming"
                     size="xl"
-                    disabled={isLoading}
+                    disabled={isLoading || isOnCooldown}
                     className="w-full"
                   >
                     {isLoading ? (
                       <>
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                         Processando...
+                      </>
+                    ) : isOnCooldown ? (
+                      <>
+                        <Clock className="w-5 h-5" />
+                        Aguarde {cooldownTime}s
                       </>
                     ) : (
                       <>

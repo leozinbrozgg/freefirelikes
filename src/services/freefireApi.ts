@@ -36,33 +36,45 @@ const JSONP_PROXY = 'https://api.allorigins.win/get?url=';
 
 export class FreeFireApiService {
   static async sendLikes(request: Omit<FreeFireApiRequest, 'key'>): Promise<FreeFireApiResponse> {
+    let apiResponse: FreeFireApiResponse;
+    
     // Tenta primeiro com proxy CORS
     try {
       console.log('Tentando proxy CORS...');
-      return await this.sendLikesWithProxy(request);
+      apiResponse = await this.sendLikesWithProxy(request);
     } catch (error) {
       console.error('Erro no proxy CORS:', error);
       
       // Se falhar, tenta JSONP
       try {
         console.log('Tentando método JSONP...');
-        return await this.sendLikesJsonp(request);
+        apiResponse = await this.sendLikesJsonp(request);
       } catch (error) {
         console.error('Erro no método JSONP:', error);
         
         // Se falhar, tenta método simples
         try {
           console.log('Tentando método simples...');
-          return await this.sendLikesSimple(request);
+          apiResponse = await this.sendLikesSimple(request);
         } catch (error) {
           console.error('Erro no método simples:', error);
           
           // Último recurso: simula uma resposta de sucesso
           console.log('Usando simulação de resposta...');
-          return this.getSimulatedResponse(request);
+          apiResponse = this.getSimulatedResponse(request);
         }
       }
     }
+
+    // Salva no histórico (local e Supabase)
+    try {
+      await this.saveToHistory(apiResponse, request);
+    } catch (error) {
+      console.error('Erro ao salvar no histórico:', error);
+      // Continua mesmo se falhar ao salvar
+    }
+
+    return apiResponse;
   }
 
   // Método com proxy CORS (primeira tentativa)
@@ -212,7 +224,7 @@ export class FreeFireApiService {
   }
 
   // Métodos para gerenciar histórico
-  static saveToHistory(apiResponse: FreeFireApiResponse, request: Omit<FreeFireApiRequest, 'key'>): void {
+  static async saveToHistory(apiResponse: FreeFireApiResponse, request: Omit<FreeFireApiRequest, 'key'>): Promise<void> {
     const historyEntry: LikeHistoryEntry = {
       id: `like_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       playerId: request.uid,
@@ -228,42 +240,15 @@ export class FreeFireApiService {
       success: apiResponse.Likes_Antes !== apiResponse.Likes_Depois
     };
 
-    const history = this.getHistory();
-    history.unshift(historyEntry); // Adiciona no início
-    
-    // Mantém apenas os últimos 50 registros
-    if (history.length > 50) {
-      history.splice(50);
-    }
-    
-    localStorage.setItem('freefire_likes_history', JSON.stringify(history));
-  }
-
-  static getHistory(): LikeHistoryEntry[] {
+    // Salva apenas no Supabase (banco de dados)
     try {
-      const stored = localStorage.getItem('freefire_likes_history');
-      return stored ? JSON.parse(stored) : [];
+      const { SupabaseService } = await import('./supabaseService');
+      await SupabaseService.saveLikeHistory(historyEntry);
     } catch (error) {
-      console.error('Erro ao carregar histórico:', error);
-      return [];
+      console.error('Erro ao salvar no Supabase:', error);
+      // Continua mesmo se falhar no Supabase
     }
   }
 
-  static clearHistory(): void {
-    localStorage.removeItem('freefire_likes_history');
-  }
-
-  static getHistoryStats(): { total: number; successful: number; failed: number; totalLikes: number } {
-    const history = this.getHistory();
-    const successful = history.filter(entry => entry.success);
-    const failed = history.filter(entry => !entry.success);
-    const totalLikes = successful.reduce((sum, entry) => sum + entry.likesEnviados, 0);
-
-    return {
-      total: history.length,
-      successful: successful.length,
-      failed: failed.length,
-      totalLikes
-    };
-  }
 }
+

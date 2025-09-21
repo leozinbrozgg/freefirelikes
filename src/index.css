@@ -1,3 +1,4 @@
+/* @tailwind directives - these are processed by PostCSS */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -101,10 +102,12 @@
 
 @layer base {
   * {
+    /* @apply directive - processed by Tailwind CSS */
     @apply border-border;
   }
 
   body {
+    /* @apply directive - processed by Tailwind CSS */
     @apply bg-background text-foreground;
     background: var(--gradient-dark);
     min-height: 100vh;

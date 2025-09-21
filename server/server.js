@@ -7,9 +7,20 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
+const http = require('http');
+const { Server } = require('socket.io');
 require('dotenv').config();
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.NODE_ENV === 'production' 
+      ? (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean)
+      : ['http://localhost:8080', 'http://localhost:3000', 'http://127.0.0.1:8080', 'http://localhost:5173'],
+    methods: ['GET', 'POST']
+  }
+});
 const PORT = process.env.PORT || 3001;
 
 // Configurações de segurança
@@ -19,6 +30,55 @@ const API_KEY = process.env.API_KEY || crypto.randomBytes(32).toString('hex');
 // Armazenamento temporário de usuários (em produção, use um banco de dados)
 const users = new Map();
 const apiKeys = new Map();
+
+// Armazenamento global de histórico de likes
+const globalHistory = [];
+const MAX_HISTORY_ENTRIES = 1000; // Máximo de 1000 entradas no histórico global
+
+// Função para adicionar entrada ao histórico global
+const addToGlobalHistory = (entry) => {
+  globalHistory.unshift(entry); // Adiciona no início
+  
+  // Mantém apenas os últimos MAX_HISTORY_ENTRIES registros
+  if (globalHistory.length > MAX_HISTORY_ENTRIES) {
+    globalHistory.splice(MAX_HISTORY_ENTRIES);
+  }
+  
+  // Emite atualização para todos os clientes conectados
+  io.emit('historyUpdate', {
+    newEntry: entry,
+    totalEntries: globalHistory.length
+  });
+};
+
+// Função para obter estatísticas do histórico global
+const getGlobalStats = () => {
+  const successful = globalHistory.filter(entry => entry.success);
+  const failed = globalHistory.filter(entry => !entry.success);
+  const totalLikes = successful.reduce((sum, entry) => sum + entry.likesEnviados, 0);
+  
+  return {
+    total: globalHistory.length,
+    successful: successful.length,
+    failed: failed.length,
+    totalLikes: totalLikes
+  };
+};
+
+// Configurar WebSocket
+io.on('connection', (socket) => {
+  console.log(`[${new Date().toISOString()}] Cliente conectado: ${socket.id}`);
+  
+  // Enviar histórico atual para o cliente recém-conectado
+  socket.emit('initialHistory', {
+    history: globalHistory.slice(0, 50), // Últimos 50 registros
+    stats: getGlobalStats()
+  });
+  
+  socket.on('disconnect', () => {
+    console.log(`[${new Date().toISOString()}] Cliente desconectado: ${socket.id}`);
+  });
+});
 
 // Gerar chave API inicial se não existir
 if (!process.env.API_KEY) {
@@ -165,6 +225,25 @@ app.post('/api/send-likes', authenticateApiKey, validateRequest, async (req, res
     // Log da resposta (sem dados sensíveis)
     console.log(`[${new Date().toISOString()}] Resposta recebida para UID=${uid}`);
     
+    // Adicionar ao histórico global
+    const historyEntry = {
+      id: crypto.randomUUID(),
+      playerId: uid,
+      playerNickname: response.data.PlayerNickname || 'Desconhecido',
+      playerRegion: response.data.PlayerRegion || 'Desconhecido',
+      quantity: quantity,
+      likesAntes: response.data.Likes_Antes || 0,
+      likesDepois: response.data.Likes_Depois || 0,
+      likesEnviados: response.data.Likes_Enviados || 0,
+      playerLevel: response.data.PlayerLevel || 0,
+      playerEXP: response.data.PlayerEXP || 0,
+      timestamp: Date.now(),
+      success: (response.data.Likes_Enviados || 0) > 0,
+      clientIP: req.ip
+    };
+    
+    addToGlobalHistory(historyEntry);
+    
     res.json(response.data);
     
   } catch (error) {
@@ -186,6 +265,46 @@ app.get('/api/health', (req, res) => {
     version: '1.0.0',
     security: 'enabled'
   });
+});
+
+// Endpoint para buscar histórico global (público)
+app.get('/api/global-history', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+    
+    const history = globalHistory.slice(offset, offset + limit);
+    const stats = getGlobalStats();
+    
+    res.json({
+      history,
+      stats,
+      pagination: {
+        total: globalHistory.length,
+        limit,
+        offset,
+        hasMore: offset + limit < globalHistory.length
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao buscar histórico global:', error);
+    res.status(500).json({
+      error: 'Erro ao buscar histórico'
+    });
+  }
+});
+
+// Endpoint para buscar estatísticas globais (público)
+app.get('/api/global-stats', (req, res) => {
+  try {
+    const stats = getGlobalStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Erro ao buscar estatísticas:', error);
+    res.status(500).json({
+      error: 'Erro ao buscar estatísticas'
+    });
+  }
 });
 
 // Endpoint para gerar nova API Key (protegido)
@@ -271,7 +390,9 @@ app.use('*', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`📊 Rate limit: ${process.env.RATE_LIMIT_MAX_REQUESTS || 10} requests por ${Math.ceil((parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000) / 60000)} minutos`);
+  console.log(`🌐 WebSocket habilitado para atualizações em tempo real`);
+  console.log(`📈 Histórico global: ${globalHistory.length} entradas`);
 });
