@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { FreeFireApiResponse } from "@/services/freefireApi";
-import { User, ThumbsUp, Star, Globe, TrendingUp, X } from "lucide-react";
+import { User, Star, Globe, TrendingUp, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface PlayerModalProps {
@@ -18,8 +18,8 @@ export const PlayerModal = ({ playerData, isOpen, onClose }: PlayerModalProps) =
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 gradient-gaming rounded-full flex items-center justify-center shadow-glow">
+        <DialogHeader className="text-left space-y-4">
+          <div className="w-16 h-16 gradient-gaming rounded-full flex items-center justify-center shadow-glow">
             <User className="w-8 h-8 text-white" />
           </div>
           <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
@@ -46,11 +46,6 @@ export const PlayerModal = ({ playerData, isOpen, onClose }: PlayerModalProps) =
             
             {/* Estatísticas de likes */}
             <div className="mb-4">
-              <h4 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
-                <ThumbsUp className="w-4 h-4 text-primary" />
-                Estatísticas de Likes
-              </h4>
-              
               <div className="grid grid-cols-3 gap-3">
                 <div className="text-center">
                   <div className="text-lg font-bold text-primary">

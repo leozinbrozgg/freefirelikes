@@ -78,6 +78,12 @@ export const FreefireForm = () => {
       setConnectionStatus('connected');
       setIsModalOpen(true);
       
+      // Salva no histórico
+      FreeFireApiService.saveToHistory(response, {
+        uid: formData.playerId,
+        quantity: formData.quantity
+      });
+      
       // Verifica se os likes foram realmente enviados
       if (response.Likes_Antes === response.Likes_Depois) {
         toast({
@@ -123,9 +129,11 @@ export const FreefireForm = () => {
         <div className="w-full">
           <Card className="gradient-card border-border/50 shadow-card backdrop-blur-sm">
         <CardHeader className="text-left space-y-2">
-          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Ganhe Likes no Free Fire!
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              Ganhe Likes no Free Fire!
+            </CardTitle>
+          </div>
           <div className="text-left">
             <div className="flex items-center gap-2 text-sm">
               <div className={`w-2 h-2 rounded-full ${
@@ -288,6 +296,7 @@ export const FreefireForm = () => {
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
       />
+
     </div>
   );
 };

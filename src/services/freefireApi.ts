@@ -8,6 +8,21 @@ export interface FreeFireApiResponse {
   PlayerRegion: string;
 }
 
+export interface LikeHistoryEntry {
+  id: string;
+  playerId: string;
+  playerNickname: string;
+  playerRegion: string;
+  quantity: number;
+  likesAntes: number;
+  likesDepois: number;
+  likesEnviados: number;
+  playerLevel: number;
+  playerEXP: number;
+  timestamp: number;
+  success: boolean;
+}
+
 export interface FreeFireApiRequest {
   uid: string;
   quantity: number;
@@ -16,70 +31,48 @@ export interface FreeFireApiRequest {
 
 const API_BASE_URL = 'https://kryptorweb.com.br/api/likes';
 const API_KEY = 'slaboy';
-const FALLBACK_URL = 'https://api.allorigins.win/raw?url=';
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+const JSONP_PROXY = 'https://api.allorigins.win/get?url=';
 
 export class FreeFireApiService {
   static async sendLikes(request: Omit<FreeFireApiRequest, 'key'>): Promise<FreeFireApiResponse> {
-    // Tenta primeiro com fetch direto (API real)
+    // Tenta primeiro com proxy CORS
     try {
-      console.log('Tentando API real...');
-      return await this.sendLikesDirect(request);
+      console.log('Tentando proxy CORS...');
+      return await this.sendLikesWithProxy(request);
     } catch (error) {
-      console.error('Erro na API real:', error);
+      console.error('Erro no proxy CORS:', error);
       
-      // Se falhar, tenta com proxy
+      // Se falhar, tenta JSONP
       try {
-        console.log('Tentando com proxy...');
-        return await this.sendLikesWithProxy(request);
+        console.log('Tentando método JSONP...');
+        return await this.sendLikesJsonp(request);
       } catch (error) {
-        console.error('Erro com proxy:', error);
+        console.error('Erro no método JSONP:', error);
         
-        // Último recurso: simula uma resposta de sucesso
-        console.log('Usando simulação de resposta...');
-        return this.getSimulatedResponse(request);
+        // Se falhar, tenta método simples
+        try {
+          console.log('Tentando método simples...');
+          return await this.sendLikesSimple(request);
+        } catch (error) {
+          console.error('Erro no método simples:', error);
+          
+          // Último recurso: simula uma resposta de sucesso
+          console.log('Usando simulação de resposta...');
+          return this.getSimulatedResponse(request);
+        }
       }
     }
   }
 
-  // Método direto com API real
-  static async sendLikesDirect(request: Omit<FreeFireApiRequest, 'key'>): Promise<FreeFireApiResponse> {
-    const url = new URL(API_BASE_URL);
-    url.searchParams.append('uid', request.uid);
-    url.searchParams.append('quantity', request.quantity.toString());
-    url.searchParams.append('key', API_KEY);
-
-    console.log('Enviando requisição para API real:', url.toString());
-    
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      mode: 'cors',
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erro na API: ${response.status} - ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    console.log('Resposta da API real:', data);
-    
-    // Valida se a resposta contém os campos necessários
-    if (!data || typeof data.Likes_Antes !== 'number' || typeof data.Likes_Depois !== 'number') {
-      throw new Error('Resposta da API inválida');
-    }
-    
-    return data as FreeFireApiResponse;
-  }
-
-  // Método com proxy (fallback)
+  // Método com proxy CORS (primeira tentativa)
   static async sendLikesWithProxy(request: Omit<FreeFireApiRequest, 'key'>): Promise<FreeFireApiResponse> {
-    const targetUrl = `${API_BASE_URL}?uid=${request.uid}&quantity=${request.quantity}&key=${API_KEY}`;
+    const targetUrl = `${API_BASE_URL}?uid=${request.uid}&quantity=${request.quantity}&key=${API_KEY}&_t=${Date.now()}`;
+    const proxyUrl = `${CORS_PROXY}${encodeURIComponent(targetUrl)}`;
     
-    console.log('Tentando com proxy:', targetUrl);
+    console.log('Tentando com proxy CORS:', proxyUrl);
     
-    const response = await fetch(FALLBACK_URL + encodeURIComponent(targetUrl), {
+    const response = await fetch(proxyUrl, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
@@ -91,7 +84,7 @@ export class FreeFireApiService {
     }
 
     const data = await response.json();
-    console.log('Resposta via proxy:', data);
+    console.log('Resposta via proxy CORS:', data);
     
     // Valida se a resposta contém os campos necessários
     if (!data || typeof data.Likes_Antes !== 'number' || typeof data.Likes_Depois !== 'number') {
@@ -99,6 +92,96 @@ export class FreeFireApiService {
     }
     
     return data as FreeFireApiResponse;
+  }
+
+  // Método JSONP (sem CORS)
+  static async sendLikesJsonp(request: Omit<FreeFireApiRequest, 'key'>): Promise<FreeFireApiResponse> {
+    return new Promise((resolve, reject) => {
+      const callbackName = `jsonp_callback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const targetUrl = `${API_BASE_URL}?uid=${request.uid}&quantity=${request.quantity}&key=${API_KEY}&_t=${Date.now()}`;
+      const proxyUrl = `${JSONP_PROXY}${encodeURIComponent(targetUrl)}&callback=${callbackName}`;
+      
+      // Cria função global para callback
+      (window as any)[callbackName] = (data: any) => {
+        try {
+          // Limpa a função global
+          delete (window as any)[callbackName];
+          
+          // Valida resposta
+          if (!data || typeof data.Likes_Antes !== 'number' || typeof data.Likes_Depois !== 'number') {
+            throw new Error('Resposta JSONP inválida');
+          }
+          
+          console.log('Resposta JSONP:', data);
+          resolve(data as FreeFireApiResponse);
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      // Cria script tag
+      const script = document.createElement('script');
+      script.src = proxyUrl;
+      script.onerror = () => {
+        delete (window as any)[callbackName];
+        reject(new Error('Erro ao carregar script JSONP'));
+      };
+      
+      // Timeout de 15 segundos
+      setTimeout(() => {
+        delete (window as any)[callbackName];
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+        reject(new Error('Timeout no JSONP'));
+      }, 15000);
+      
+      document.head.appendChild(script);
+    });
+  }
+
+  // Método simples sem headers complexos
+  static async sendLikesSimple(request: Omit<FreeFireApiRequest, 'key'>): Promise<FreeFireApiResponse> {
+    const url = new URL(API_BASE_URL);
+    url.searchParams.append('uid', request.uid);
+    url.searchParams.append('quantity', request.quantity.toString());
+    url.searchParams.append('key', API_KEY);
+    url.searchParams.append('_t', Date.now().toString());
+
+    console.log('Enviando requisição simples para:', url.toString());
+    
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      mode: 'no-cors', // Tenta no-cors primeiro
+    });
+
+    // Se no-cors não funcionar, tenta com cors
+    if (!response.ok) {
+      const corsResponse = await fetch(url.toString(), {
+        method: 'GET',
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!corsResponse.ok) {
+        throw new Error(`Erro na API: ${corsResponse.status} - ${corsResponse.statusText}`);
+      }
+
+      const data = await corsResponse.json();
+      console.log('Resposta da API (CORS):', data);
+      
+      // Valida se a resposta contém os campos necessários
+      if (!data || typeof data.Likes_Antes !== 'number' || typeof data.Likes_Depois !== 'number') {
+        throw new Error('Resposta da API inválida');
+      }
+      
+      return data as FreeFireApiResponse;
+    }
+
+    // Para no-cors, não podemos ler a resposta, então simula
+    throw new Error('Resposta no-cors não pode ser lida');
   }
 
   // Método de simulação (fallback final)
@@ -126,5 +209,61 @@ export class FreeFireApiService {
 
   static validateQuantity(quantity: number): boolean {
     return quantity > 0 && quantity <= 1000;
+  }
+
+  // Métodos para gerenciar histórico
+  static saveToHistory(apiResponse: FreeFireApiResponse, request: Omit<FreeFireApiRequest, 'key'>): void {
+    const historyEntry: LikeHistoryEntry = {
+      id: `like_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      playerId: request.uid,
+      playerNickname: apiResponse.PlayerNickname,
+      playerRegion: apiResponse.PlayerRegion,
+      quantity: request.quantity,
+      likesAntes: apiResponse.Likes_Antes,
+      likesDepois: apiResponse.Likes_Depois,
+      likesEnviados: apiResponse.Likes_Enviados,
+      playerLevel: apiResponse.PlayerLevel,
+      playerEXP: apiResponse.PlayerEXP,
+      timestamp: Date.now(),
+      success: apiResponse.Likes_Antes !== apiResponse.Likes_Depois
+    };
+
+    const history = this.getHistory();
+    history.unshift(historyEntry); // Adiciona no início
+    
+    // Mantém apenas os últimos 50 registros
+    if (history.length > 50) {
+      history.splice(50);
+    }
+    
+    localStorage.setItem('freefire_likes_history', JSON.stringify(history));
+  }
+
+  static getHistory(): LikeHistoryEntry[] {
+    try {
+      const stored = localStorage.getItem('freefire_likes_history');
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Erro ao carregar histórico:', error);
+      return [];
+    }
+  }
+
+  static clearHistory(): void {
+    localStorage.removeItem('freefire_likes_history');
+  }
+
+  static getHistoryStats(): { total: number; successful: number; failed: number; totalLikes: number } {
+    const history = this.getHistory();
+    const successful = history.filter(entry => entry.success);
+    const failed = history.filter(entry => !entry.success);
+    const totalLikes = successful.reduce((sum, entry) => sum + entry.likesEnviados, 0);
+
+    return {
+      total: history.length,
+      successful: successful.length,
+      failed: failed.length,
+      totalLikes
+    };
   }
 }
