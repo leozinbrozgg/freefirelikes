@@ -119,7 +119,7 @@ export const FreefireForm = () => {
     if (!FreeFireApiService.validatePlayerId(formData.playerId)) {
       toast({
         title: "Erro de Validacao",
-        description: "ID do jogador deve estar entre 10000001 e 99999999999",
+        description: "ID do jogador deve estar entre 100000001 e 99999999999",
         variant: "destructive",
       });
       return;
@@ -161,10 +161,21 @@ export const FreefireForm = () => {
           variant: "destructive",
         });
       } else if (response.Likes_Enviados > 0) {
-        toast({
-          title: "Likes Enviados com Sucesso! 🔥",
-          description: `${response.Likes_Enviados} likes enviados para ${response.PlayerNickname}!`,
-        });
+        const realLikesSent = response.Likes_Depois - response.Likes_Antes;
+        const requestedLikes = formData.quantity;
+        
+        if (realLikesSent < requestedLikes) {
+          toast({
+            title: "Limite de 24h Atingido! ⏰",
+            description: `${realLikesSent} de ${requestedLikes} likes foram aplicados para ${response.PlayerNickname}. Este ID já recebeu likes nas últimas 24h.`,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Likes Enviados com Sucesso! 🔥",
+            description: `${response.Likes_Enviados} likes enviados para ${response.PlayerNickname}!`,
+          });
+        }
       } else {
         toast({
           title: "Erro no Envio",

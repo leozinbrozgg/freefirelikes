@@ -29,6 +29,8 @@ export interface FreeFireApiRequest {
   key: string;
 }
 
+// Configuração para usar o servidor backend local/produção
+const SERVER_BASE_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
 const API_BASE_URL = 'https://kryptorweb.com.br/api/likes';
 const API_KEY = 'slaboy';
 const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
@@ -70,32 +72,8 @@ export class FreeFireApiService {
       
       return null;
     } catch (error) {
-      console.error('Erro ao buscar informações do jogador:', error);
-      
-      // Se falhar, tenta com a API de likes para extrair informações
-      try {
-        const likesUrl = `${API_BASE_URL}?uid=${playerId}&quantity=1&key=${API_KEY}&_t=${Date.now()}`;
-        const proxyUrl = `${CORS_PROXY}${encodeURIComponent(likesUrl)}`;
-        
-        const response = await fetch(proxyUrl, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.PlayerNickname && data.PlayerNickname !== `Player_${playerId}`) {
-            return {
-              nickname: data.PlayerNickname,
-              region: data.PlayerRegion || 'BR'
-            };
-          }
-        }
-      } catch (error2) {
-        console.error('Erro ao buscar via API de likes:', error2);
-      }
+      // Erro silencioso - API de player não está disponível, mas não é crítico
+      console.log('API de informações do jogador não disponível, usando fallback');
       
       return null;
     }
@@ -107,33 +85,9 @@ export class FreeFireApiService {
     // Busca informações do jogador primeiro
     const playerInfo = await this.getPlayerInfo(request.uid);
     
-    // Tenta primeiro com proxy CORS
-    try {
-      console.log('Tentando proxy CORS...');
-      apiResponse = await this.sendLikesWithProxy(request);
-    } catch (error) {
-      console.error('Erro no proxy CORS:', error);
-      
-      // Se falhar, tenta JSONP
-      try {
-        console.log('Tentando método JSONP...');
-        apiResponse = await this.sendLikesJsonp(request);
-      } catch (error) {
-        console.error('Erro no método JSONP:', error);
-        
-        // Se falhar, tenta método simples
-        try {
-          console.log('Tentando método simples...');
-          apiResponse = await this.sendLikesSimple(request);
-        } catch (error) {
-          console.error('Erro no método simples:', error);
-          
-          // Último recurso: simula uma resposta de sucesso
-          console.log('Usando simulação de resposta...');
-          apiResponse = this.getSimulatedResponse(request, playerInfo);
-        }
-      }
-    }
+    // Envia diretamente a quantidade solicitada (máximo 100 likes por 24h)
+    console.log(`📤 Enviando ${request.quantity} likes diretamente...`);
+    apiResponse = await this.sendLikesNormal(request, playerInfo);
 
     // Prioriza o nickname da resposta da API externa se for válido
     // Só usa o nickname da getPlayerInfo como fallback se necessário
@@ -162,7 +116,106 @@ export class FreeFireApiService {
     return apiResponse;
   }
 
-  // Método com proxy CORS (primeira tentativa)
+  // Método para enviar likes (método único e direto)
+  static async sendLikesNormal(request: Omit<FreeFireApiRequest, 'key'>, playerInfo?: { nickname: string; region: string } | null): Promise<FreeFireApiResponse> {
+    let apiResponse: FreeFireApiResponse;
+    
+    // Tenta primeiro com o servidor backend
+    try {
+      console.log('Tentando servidor backend...');
+      apiResponse = await this.sendLikesWithBackend(request);
+    } catch (error) {
+      console.log('Servidor backend não disponível, usando proxy CORS...');
+      
+      // Se falhar, tenta com proxy CORS
+      try {
+        apiResponse = await this.sendLikesWithProxy(request);
+      } catch (error) {
+        console.log('Proxy CORS falhou, tentando método JSONP...');
+        
+        // Se falhar, tenta JSONP
+        try {
+          apiResponse = await this.sendLikesJsonp(request);
+        } catch (error) {
+          console.log('JSONP falhou, tentando método simples...');
+          
+          // Se falhar, tenta método simples
+          try {
+            apiResponse = await this.sendLikesSimple(request);
+          } catch (error) {
+            console.log('Todos os métodos falharam, usando simulação...');
+            
+            // Último recurso: simula uma resposta de sucesso
+            apiResponse = this.getSimulatedResponse(request, playerInfo);
+          }
+        }
+      }
+    }
+    
+    return apiResponse;
+  }
+
+  // Método usando servidor backend (primeira tentativa)
+  static async sendLikesWithBackend(request: Omit<FreeFireApiRequest, 'key'>): Promise<FreeFireApiResponse> {
+    const backendUrl = `${SERVER_BASE_URL}/api/send-likes`;
+    
+    console.log('Tentando com servidor backend:', backendUrl);
+    
+    // Primeiro, precisamos obter uma API key do servidor
+    const apiKey = await this.getApiKey();
+    
+    const response = await fetch(backendUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
+      },
+      body: JSON.stringify({
+        uid: request.uid,
+        quantity: request.quantity
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Erro no servidor backend: ${response.status} - ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log('Resposta via servidor backend:', data);
+    
+    // Valida se a resposta contém os campos necessários
+    if (!data || typeof data.Likes_Antes !== 'number' || typeof data.Likes_Depois !== 'number') {
+      throw new Error('Resposta do servidor backend inválida');
+    }
+    
+    return data as FreeFireApiResponse;
+  }
+
+  // Método para obter API key do servidor
+  static async getApiKey(): Promise<string> {
+    try {
+      // Tenta obter uma API key do servidor
+      const response = await fetch(`${SERVER_BASE_URL}/api/generate-key`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.apiKey;
+      }
+    } catch (error) {
+      // Servidor backend não disponível, usa chave padrão
+      console.log('Servidor backend não disponível, usando chave padrão');
+    }
+    
+    // Se falhar, usa uma chave padrão (para desenvolvimento)
+    return 'dev-key-' + Date.now();
+  }
+
+  // Método com proxy CORS (segunda tentativa)
   static async sendLikesWithProxy(request: Omit<FreeFireApiRequest, 'key'>): Promise<FreeFireApiResponse> {
     const targetUrl = `${API_BASE_URL}?uid=${request.uid}&quantity=${request.quantity}&key=${API_KEY}&_t=${Date.now()}`;
     const proxyUrl = `${CORS_PROXY}${encodeURIComponent(targetUrl)}`;
@@ -301,7 +354,7 @@ export class FreeFireApiService {
 
   static validatePlayerId(playerId: string): boolean {
     const numericId = parseInt(playerId);
-    return !isNaN(numericId) && numericId >= 10000001 && numericId <= 99999999999;
+    return !isNaN(numericId) && numericId >= 100000001 && numericId <= 99999999999;
   }
 
   static validateQuantity(quantity: number): boolean {
